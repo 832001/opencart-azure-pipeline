@@ -1,0 +1,42 @@
+trigger:
+  branches:
+    include:
+      - master
+
+variables:
+  - group: Secrets  # 👈 Link to your variable group with MARIADB_PASSWORD
+
+pool:
+  name: 'windows'
+
+stages:
+  - stage: DeployAppAndDB
+    jobs:
+      - job: DeployAndCreateDB
+        steps:
+          - task: CopyFiles@2
+            inputs:
+              SourceFolder: '$(Build.SourcesDirectory)'
+              TargetFolder: 'C:\inetpub\wwwroot'
+              OverWrite: true
+
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                $dbName = "opencart"
+                $dbUser = "root"
+                $dbPass = "$(MARIADB_PASSWORD)"
+                $mysqlExe = "C:\MariaDB\bin\mysql.exe"
+
+                Write-Host "🔐 Connecting with password: $dbPass"  # Remove this after testing!
+
+                $command = "CREATE DATABASE IF NOT EXISTS $dbName;"
+                & $mysqlExe -u $dbUser -p"$dbPass" -e "$command"
+
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✅ Database '$dbName' created successfully."
+                } else {
+                  Write-Error "❌ Failed to create database."
+                  exit 1
+                }

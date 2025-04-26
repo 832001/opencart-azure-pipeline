@@ -1,0 +1,55 @@
+# templates/install-php.yml
+jobs:
+  - job: InstallPHP
+    displayName: Install PHP
+    pool:
+      name: 'windows'
+    steps:
+      - task: PowerShell@2
+        displayName: Remove existing PHP folder if any
+        inputs:
+          targetType: 'inline'
+          script: |
+            $phpPath = "C:\PHP"
+            if (Test-Path $phpPath) {
+              Write-Host "Removing existing PHP folder..."
+              Remove-Item -Recurse -Force $phpPath
+            }
+
+      - task: CopyFiles@2
+        displayName: Copy PHP Files
+        inputs:
+          SourceFolder: '$(PHP)'
+          TargetFolder: 'C:\PHP'
+          OverWrite: true
+
+      - task: PowerShell@2
+        displayName: Configure PHP with IIS
+        inputs:
+          targetType: 'inline'
+          script: |
+            $phpPath = "C:\PHP"
+            Write-Host "Configuring PHP in IIS..."
+
+            $env:Path += ";$phpPath"
+
+            Import-Module WebAdministration
+
+            # Add FastCGI Application
+            Add-WebConfiguration -pspath "MACHINE/WEBROOT/APPHOST" -filter "system.webServer/fastCgi" -value @{
+              fullPath="$phpPath\php-cgi.exe";
+              arguments="";
+              maxInstances="5"
+            }
+
+            # Add Handler Mapping
+            Add-WebConfiguration -pspath "MACHINE/WEBROOT/APPHOST" -filter "system.webServer/handlers" -value @{
+              name="PHP_via_FastCGI";
+              path="*.php";
+              verb="*";
+              modules="FastCgiModule";
+              scriptProcessor="$phpPath\php-cgi.exe";
+              resourceType="Either"
+            }
+
+            php -v
